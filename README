@@ -1,0 +1,22 @@
+cv-cvsu v.0.1.0
+
+CVSU adaptation module for the CV library.
+
+This library contains simple adaptation and conversion functions for using CVSU
+library with CV images and types.
+
+Installation:
+
+Haskell platform, CV library, and hs-cvsu library are required for using this
+library.
+
+Haskell platform:
+http://www.haskell.org/platform/
+Version 2012.2.0.0 or newer is recommended.
+
+hs-cvsu:
+http://github.org/amnipar/hs-cvsu
+
+CV:
+http://github.org/aleator/CV
+Note that this requires OpenCV library.

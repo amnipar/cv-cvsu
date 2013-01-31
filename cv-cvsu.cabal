@@ -1,0 +1,57 @@
+Name:                cv-cvsu
+Version:             0.1.0
+Synopsis:            CVSU adaptation module for the CV library.
+Description:         This library contains simple adaptation and conversion
+                     functions for using CVSU library with CV images and types.
+Homepage:            http://github.org/amnipar/cv-cvsu
+License:             BSD3
+License-file:        LICENSE
+Author:              Matti Johannes Eskelinen
+Maintainer:          matti.j.eskelinen@gmail.com
+Stability:           Experimental
+Category:            AI, Graphics, Machine Vision
+Build-type:          Simple
+Extra-source-files:  README
+Cabal-version:       >=1.8
+
+Library
+  Exposed-modules:
+    CV.CVSU
+  Other-Modules:
+    CV.Bindings.CVSU
+  Extensions:
+    ForeignFunctionInterface
+  Build-Depends:
+    base >= 3 && < 5,
+    hs-cvsu >= 0.1.0,
+    CV >= 0.3.6.2
+  Include-dirs:
+    c
+    /usr/include/opencv
+  Extra-libraries:
+    opencv_core,
+    opencv_highgui
+  Includes:
+    c/cvsu_config.h,
+    c/cvsu_memory.h,
+    c/cvsu_output.h,
+    c/cvsu_types.h,
+    c/cvsu_pixel_image.h,
+    c/cvsu_opencv.h
+  Install-includes:
+    c/cvsu_config.h,
+    c/cvsu_memory.h,
+    c/cvsu_output.h,
+    c/cvsu_types.h,
+    c/cvsu_pixel_image.h,
+    c/cvsu_opencv.h
+  C-sources:
+    c/cvsu_memory.c,
+    c/cvsu_output.c,
+    c/cvsu_types.c,
+    c/cvsu_pixel_image.c,
+    c/cvsu_opencv.c
+
+source-repository head
+  type:     git
+  location: git@yousource.it.jyu.fi:hs-cvsu/cv-cvsu.git
