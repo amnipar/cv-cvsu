@@ -17,6 +17,7 @@ Cabal-version:       >=1.8
 Library
   Exposed-modules:
     CV.CVSU
+    CV.CVSU.Rectangle
   Other-Modules:
     CV.Bindings.CVSU
   Extensions:

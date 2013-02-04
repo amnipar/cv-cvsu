@@ -1,6 +1,10 @@
 {-#LANGUAGE FlexibleInstances #-}
 module CV.CVSU
-( readPixelImage
+( expectByteGrey
+, expectByteRGB
+, expectFloatGrey
+, expectFloatRGB
+, readPixelImage
 , writePixelImage
 ) where
 
@@ -54,6 +58,32 @@ instance CVSU.Convertible (Image RGB D8) where
   toPixelImage img = do
     withGenImage img $ \pimg ->
       fromIplImage FormatRGB (castPtr pimg)
+
+expectByteGrey :: Image GrayScale D8 -> IO (Image GrayScale D8)
+expectByteGrey = return
+
+expectByteRGB :: Image RGB D8 -> IO (Image RGB D8)
+expectByteRGB = return
+
+expectFloatGrey :: Image GrayScale D32 -> IO (Image GrayScale D32)
+expectFloatGrey = return
+
+expectFloatRGB :: Image RGB D32 -> IO (Image RGB D32)
+expectFloatRGB = return
+
+{-
+expectByteGrey :: PixelImage -> IO (Image GrayScale D8)
+expectByteGrey = fromPixelImage
+
+expectByteRGB :: PixelImage -> IO (Image RGB D8)
+expectByteRGB = fromPixelImage
+
+expectFloatGrey :: PixelImage -> IO (Image GrayScale D32)
+expectFloatGrey = fromPixelImage
+
+expectFloatRGB :: PixelImage -> IO (Image RGB D32)
+expectFloatRGB = fromPixelImage
+-}
 
 readPixelImage :: String -> IO (PixelImage)
 readPixelImage f = do
