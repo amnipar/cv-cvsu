@@ -18,6 +18,7 @@ Library
   Exposed-modules:
     CV.CVSU
     CV.CVSU.Rectangle
+    CV.CVSU.Drawing
   Other-Modules:
     CV.Bindings.CVSU
   Extensions:
