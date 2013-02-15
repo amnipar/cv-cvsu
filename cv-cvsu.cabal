@@ -35,6 +35,7 @@ Library
     opencv_highgui
   Includes:
     c/cvsu_config.h,
+    c/cvsu_macros.h,
     c/cvsu_memory.h,
     c/cvsu_output.h,
     c/cvsu_types.h,
@@ -42,6 +43,7 @@ Library
     c/cvsu_opencv.h
   Install-includes:
     c/cvsu_config.h,
+    c/cvsu_macros.h,
     c/cvsu_memory.h,
     c/cvsu_output.h,
     c/cvsu_types.h,
