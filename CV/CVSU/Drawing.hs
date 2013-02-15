@@ -7,15 +7,17 @@ module CV.CVSU.Drawing
 , drawCompRects
 , drawCompRectsWithColors
 , drawTreeValues
+, drawBoundaries
 , drawEdges
 , drawHEdges
 , drawVEdges
+, drawLines
 ) where
 
 import CVSU.ConnectedComponents
 import CVSU.QuadForest
 import CV.Image
-import CV.Drawing
+import CV.Drawing hiding (drawLines)
 import CV.ImageOp
 import Utils.Rectangle
 import CV.CVSU.Rectangle
@@ -75,6 +77,17 @@ drawTreeValues :: (QuadTree -> Float) -> [QuadTree] -> Image RGB D32 -> Image RG
 drawTreeValues getValue ts img =
   drawRectsWithVals (map (treeToRectAndVal getValue) ts) img
 
+toHLine (QuadTree _ x y s _ _ e _ _ _ _ _) = ((x,y+s`div`2),(x+s,y+s`div`2))
+
+toVLine (QuadTree _ x y s _ _ _ _ _ _ _ _) = ((x+s`div`2,y),(x+s`div`2,y+s))
+
+toLine (QuadTree _ x y s _ _ e _ _ _ _ _) = ((x+d+dx,y+d-dy),(x+d-dx,y+d+dy))
+  where
+    dx = round $ (edgeDY e / m) * fromIntegral d
+    dy = round $ (edgeDX e / m) * fromIntegral d
+    d = s `div` 2
+    m = max (abs $ edgeDX e) (abs $ edgeDY e)
+
 -- | Draws magnitude edges over an image. Optionally, also the edge response
 --   values can be visualized over the image (if drawResp is true). The edge
 --   direction is visualized as well, using the dx and dy components of the
@@ -87,13 +100,16 @@ drawEdges drawResp color size ts img =
   where
     img' | drawResp  = drawTreeValues (realToFrac.edgeMag.quadTreeEdge) ts img
          | otherwise = img
-    toLine (QuadTree _ x y s _ _ e _ _ _ _) =
-      ((x+d+dx,y+d-dy),(x+d-dx,y+d+dy))
-      where
-        dx = round $ (edgeDY e / m) * fromIntegral d
-        dy = round $ (edgeDX e / m) * fromIntegral d
-        d = s `div` 2
-        m = max (abs $ edgeDX e) (abs $ edgeDY e)
+
+drawBoundaries :: Bool -> (D32,D32,D32) -> Int -> [QuadTree] -> Image RGB D32 -> Image RGB D32
+drawBoundaries drawDev color size ts img =
+  img'
+  <## [lineOp color size (x1,y1) (x2,y2) | ((x1,y1),(x2,y2)) <- map toHLine ts']
+  <## [lineOp color size (x1,y1) (x2,y2) | ((x1,y1),(x2,y2)) <- map toVLine ts']
+  where
+    img' | drawDev  = drawTreeValues (realToFrac.segmentDevDev.quadTreeSegment) ts img
+         | otherwise = img
+    ts' = filter (segmentHasBoundary.quadTreeSegment) ts
 
 -- | Draws the detected horizontal edges over an image. Optionally, also the
 --   edge response values can be visualized over the image (if drawResp is true).
@@ -105,7 +121,6 @@ drawHEdges drawResp color size ts img =
   where
     img' | drawResp  = drawTreeValues (realToFrac.edgeDY.quadTreeEdge) ts img
          | otherwise = img
-    toHLine (QuadTree _ x y s _ _ e _ _ _ _) = ((x,y+s`div`2),(x+s,y+s`div`2))
 
 -- | Draws the detected vertical edges over an image. Optionally, also the
 --   edge response values can be visualized over the image (if drawResp is true).
@@ -117,4 +132,7 @@ drawVEdges drawResp color size ts img =
   where
     img' | drawResp  = drawTreeValues (realToFrac.edgeDX.quadTreeEdge) ts img
          | otherwise = img
-    toVLine (QuadTree _ x y s _ _ _ _ _ _ _) = ((x+s`div`2,y),(x+s`div`2,y+s))
+
+drawLines :: (D32,D32,D32) -> Int -> [((Int,Int),(Int,Int))] -> Image RGB D32 -> Image RGB D32
+drawLines color size bs img =
+  img <## [lineOp color size (x1,y1) (x2,y2) | ((x1,y1),(x2,y2)) <- bs]
