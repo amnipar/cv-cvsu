@@ -12,6 +12,7 @@ module CV.CVSU.Drawing
 , drawHEdges
 , drawVEdges
 , drawLines
+, drawWeightedLines
 ) where
 
 import CVSU.ConnectedComponents
@@ -136,3 +137,12 @@ drawVEdges drawResp color size ts img =
 drawLines :: (D32,D32,D32) -> Int -> [((Int,Int),(Int,Int))] -> Image RGB D32 -> Image RGB D32
 drawLines color size bs img =
   img <## [lineOp color size (x1,y1) (x2,y2) | ((x1,y1),(x2,y2)) <- bs]
+
+drawWeightedLines :: (D32,D32,D32) -> Int -> [(((Int,Int),(Int,Int)),Double)] -> Image RGB D32 -> Image RGB D32
+drawWeightedLines color size ls img =
+  img
+    <## [lineOp (weightColor color $ realToFrac weight) size (x1,y1) (x2,y2)
+      | (((x1,y1),(x2,y2)),weight) <- ls]
+  where
+    adjust c w = (max 0 (min 1 (c + w - 1)))
+    weightColor (c1,c2,c3) w = (adjust c1 w, adjust c2 w, adjust c3 w)
