@@ -7,21 +7,26 @@ module CV.CVSU.Drawing
 , drawCompRects
 , drawCompRectsWithColors
 , drawTreeValues
-, drawBoundaries
-, drawEdges
-, drawHEdges
-, drawVEdges
+--, drawBoundaries
+--, drawEdges
+--, drawHEdges
+--, drawVEdges
 , drawLines
 , drawWeightedLines
+, drawGraphGray
 ) where
 
+import CVSU.TypedPointer
 import CVSU.ConnectedComponents
 import CVSU.QuadForest
+import CVSU.Graph
 import CV.Image
 import CV.Drawing hiding (drawLines)
 import CV.ImageOp
 import Utils.Rectangle
 import CV.CVSU.Rectangle
+
+import Debug.Trace
 
 -- | Normalizes a value to range [0..1] using a minimum and maximum value. If
 --   the given value is smaller than minV, minV is used; likewise, if it is
@@ -77,7 +82,7 @@ drawCompRectsWithColors size comp =
 drawTreeValues :: (QuadTree -> Float) -> [QuadTree] -> Image RGB D32 -> Image RGB D32
 drawTreeValues getValue ts img =
   drawRectsWithVals (map (treeToRectAndVal getValue) ts) img
-
+{-
 toHLine (QuadTree _ x y s _ _ e _ _ _ _ _) = ((x,y+s`div`2),(x+s,y+s`div`2))
 
 toVLine (QuadTree _ x y s _ _ _ _ _ _ _ _) = ((x+s`div`2,y),(x+s`div`2,y+s))
@@ -88,11 +93,13 @@ toLine (QuadTree _ x y s _ _ e _ _ _ _ _) = ((x+d+dx,y+d-dy),(x+d-dx,y+d+dy))
     dy = round $ (edgeDX e / m) * fromIntegral d
     d = s `div` 2
     m = max (abs $ edgeDX e) (abs $ edgeDY e)
-
+    -}
+    
 -- | Draws magnitude edges over an image. Optionally, also the edge response
 --   values can be visualized over the image (if drawResp is true). The edge
 --   direction is visualized as well, using the dx and dy components of the
 --   edge response.
+{-
 drawEdges :: Bool -> (D32,D32,D32) -> Int -> [QuadTree] -> Image RGB D32 -> Image RGB D32
 drawEdges drawResp color size ts img =
   img'
@@ -101,7 +108,8 @@ drawEdges drawResp color size ts img =
   where
     img' | drawResp  = drawTreeValues (realToFrac.edgeMag.quadTreeEdge) ts img
          | otherwise = img
-
+         -}
+{-
 drawBoundaries :: Bool -> (D32,D32,D32) -> Int -> [QuadTree] -> Image RGB D32 -> Image RGB D32
 drawBoundaries drawDev color size ts img =
   img'
@@ -111,9 +119,10 @@ drawBoundaries drawDev color size ts img =
     img' | drawDev  = drawTreeValues (realToFrac.segmentDevDev.quadTreeSegment) ts img
          | otherwise = img
     ts' = filter (segmentHasBoundary.quadTreeSegment) ts
-
+    -}
 -- | Draws the detected horizontal edges over an image. Optionally, also the
 --   edge response values can be visualized over the image (if drawResp is true).
+{-
 drawHEdges :: Bool -> (D32,D32,D32) -> Int -> [QuadTree] -> Image RGB D32 -> Image RGB D32
 drawHEdges drawResp color size ts img =
   img'
@@ -122,9 +131,10 @@ drawHEdges drawResp color size ts img =
   where
     img' | drawResp  = drawTreeValues (realToFrac.edgeDY.quadTreeEdge) ts img
          | otherwise = img
-
+         -}
 -- | Draws the detected vertical edges over an image. Optionally, also the
 --   edge response values can be visualized over the image (if drawResp is true).
+{-
 drawVEdges :: Bool -> (D32,D32,D32) -> Int -> [QuadTree] -> Image RGB D32 -> Image RGB D32
 drawVEdges drawResp color size ts img =
   img'
@@ -133,7 +143,7 @@ drawVEdges drawResp color size ts img =
   where
     img' | drawResp  = drawTreeValues (realToFrac.edgeDX.quadTreeEdge) ts img
          | otherwise = img
-
+         -}
 drawLines :: (D32,D32,D32) -> Int -> [((Int,Int),(Int,Int))] -> Image RGB D32 -> Image RGB D32
 drawLines color size bs img =
   img <## [lineOp color size (x1,y1) (x2,y2) | ((x1,y1),(x2,y2)) <- bs]
@@ -146,3 +156,38 @@ drawWeightedLines color size ls img =
   where
     adjust c w = (max 0 (min 1 (c + w - 1)))
     weightColor (c1,c2,c3) w = (adjust c1 w, adjust c2 w, adjust c3 w)
+
+drawGraphGray :: (Integral a, Pointable a) => Graph a -> Image GrayScale Float
+    -> Image GrayScale Float
+drawGraphGray graph image =
+  image
+    <## [lineOp w 1 (x1,y1) (x2,y2)
+      | (x1,y1,x2,y2,w) <- map linkToLine $ links graph]
+    <## [circleOp v (x,y) 2 Filled
+      | (x,y,v) <- map nodeToPoint $ nodes graph]
+            -- filter (((==)0).val) $
+  where
+    iToF = fromIntegral
+    linkToLine l = (x1,y1,x2,y2,w)
+      where
+        (x1,y1) = roundP $ nodePosition $ linkFrom l
+        (x2,y2) = roundP $ nodePosition $ linkTo l
+        w = ((realToFrac $ linkWeight l) - minweight) / scaleweight
+        roundP (a,b) = (round a, round b)
+    nodeToPoint n = (x,y,v)
+      where
+        x = round $ fst $ nodePosition n
+        y = round $ snd $ nodePosition n
+        v = ((iToF $ val n) - minval) / scaleval
+    val = attributeValue.nodeAttribute
+      -- | nodeAttribute n == NoSuchAttribute = 0
+      -- | otherwise = (attributeValue.nodeAttribute) n
+    --f = filter (((/=)NoSuchAttribute).nodeAttribute)
+    weights = map linkWeight $ links graph
+    minweight = realToFrac $ minimum weights
+    maxweight = realToFrac $ maximum weights
+    scaleweight = maxweight - minweight
+    vals = map val $ nodes graph
+    minval = iToF $ minimum vals
+    maxval = iToF $ maximum vals
+    scaleval = maxval - minval
