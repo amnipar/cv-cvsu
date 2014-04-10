@@ -27,6 +27,7 @@ import Utils.Rectangle
 import CV.CVSU.Rectangle
 
 import Debug.Trace
+import System.IO.Unsafe
 
 -- | Normalizes a value to range [0..1] using a minimum and maximum value. If
 --   the given value is smaller than minV, minV is used; likewise, if it is
@@ -94,7 +95,7 @@ toLine (QuadTree _ x y s _ _ e _ _ _ _ _) = ((x+d+dx,y+d-dy),(x+d-dx,y+d+dy))
     d = s `div` 2
     m = max (abs $ edgeDX e) (abs $ edgeDY e)
     -}
-    
+
 -- | Draws magnitude edges over an image. Optionally, also the edge response
 --   values can be visualized over the image (if drawResp is true). The edge
 --   direction is visualized as well, using the dx and dy components of the
@@ -157,9 +158,9 @@ drawWeightedLines color size ls img =
     adjust c w = (max 0 (min 1 (c + w - 1)))
     weightColor (c1,c2,c3) w = (adjust c1 w, adjust c2 w, adjust c3 w)
 
-drawGraphGray :: (Integral a, Pointable a) => Graph a -> Image GrayScale Float
-    -> Image GrayScale Float
-drawGraphGray graph image =
+drawGraphGray :: (Integral a, AttribValue a, AttribValue b) =>
+    Attribute a -> Graph b -> Image GrayScale Float -> Image GrayScale Float
+drawGraphGray attrib graph image =
   image
     <## [lineOp w 1 (x1,y1) (x2,y2)
       | (x1,y1,x2,y2,w) <- map linkToLine $ links graph]
@@ -179,7 +180,8 @@ drawGraphGray graph image =
         x = round $ fst $ nodePosition n
         y = round $ snd $ nodePosition n
         v = ((iToF $ val n) - minval) / scaleval
-    val = attributeValue.nodeAttribute
+    val n = unsafePerformIO $ getAttribute attrib n
+      --attribValue.nodeAttribute
       -- | nodeAttribute n == NoSuchAttribute = 0
       -- | otherwise = (attributeValue.nodeAttribute) n
     --f = filter (((/=)NoSuchAttribute).nodeAttribute)
