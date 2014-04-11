@@ -1,3 +1,4 @@
+{-#LANGUAGE TypeFamilies#-}
 module CV.CVSU.Drawing
 ( valueToGrey
 , valueToColor
@@ -13,20 +14,28 @@ module CV.CVSU.Drawing
 --, drawVEdges
 , drawLines
 , drawWeightedLines
+, Colorable(..)
 , drawGraphGray
+, drawGraphColor
 ) where
 
 import CVSU.TypedPointer
 import CVSU.ConnectedComponents
 import CVSU.QuadForest
 import CVSU.Graph
+import CVSU.Set
+
 import CV.Image
 import CV.Drawing hiding (drawLines)
 import CV.ImageOp
 import Utils.Rectangle
 import CV.CVSU.Rectangle
 
+import qualified Data.List as List
+import qualified Data.Map as Map
+import Data.Maybe
 import Debug.Trace
+import System.Random
 import System.IO.Unsafe
 
 -- | Normalizes a value to range [0..1] using a minimum and maximum value. If
@@ -158,9 +167,105 @@ drawWeightedLines color size ls img =
     adjust c w = (max 0 (min 1 (c + w - 1)))
     weightColor (c1,c2,c3) w = (adjust c1 w, adjust c2 w, adjust c3 w)
 
-drawGraphGray :: (Integral a, AttribValue a, AttribValue b) =>
-    Attribute a -> Graph b -> Image GrayScale Float -> Image GrayScale Float
-drawGraphGray attrib graph image =
+iToF = fromIntegral
+    
+class Colorable c where
+  type ColorPickerParams c
+  data ColorPicker c
+  type GrayPickerParams c
+  data GrayPicker c
+  createColorPicker :: ColorPickerParams c -> [c] -> ColorPicker c
+  createGrayPicker :: GrayPickerParams c-> [c] -> GrayPicker c
+  pickColor :: ColorPicker c -> c -> (Float,Float,Float)
+  pickGray :: GrayPicker c -> c -> Float
+
+instance Colorable Int where
+  type ColorPickerParams Int = (Bool,(Float,Float,Float),(Float,Float,Float))
+  data ColorPicker Int =
+    ColorPickerInt
+    { cpIntMin :: Float
+    , cpIntScale :: Float
+    , cpIntInvert :: Bool
+    , cpIntColorBase :: (Float,Float,Float)
+    , cpIntColorScale :: (Float,Float,Float)
+    }
+  type GrayPickerParams Int = Bool
+  data GrayPicker Int = 
+    GrayPickerInt
+    { gpIntMin :: Float
+    , gpIntScale :: Float
+    , gpInvert :: Bool
+    }
+  createColorPicker (inv,cbase,cscale) vs = 
+    ColorPickerInt vmin vscale inv cbase cscale
+    where
+      vmin = iToF $ minimum vs
+      vmax = iToF $ maximum vs
+      vscale = vmax - vmin
+  createGrayPicker inv vs =
+    GrayPickerInt vmin vscale inv
+    where
+      vmin = iToF $ minimum vs
+      vmax = iToF $ maximum vs
+      vscale = vmax - vmin
+  pickColor picker v
+    | cpIntInvert picker = 
+        (bblue - sblue * c, bgreen - sgreen * c, bred - sred * c)
+    | otherwise          =
+        (bblue + sblue * c, bgreen + sgreen * c, bred + sred * c)
+    where 
+      (bblue,bgreen,bred) = cpIntColorBase picker
+      (sblue,sgreen,sred) = cpIntColorScale picker
+      vmin = cpIntMin picker
+      vscale = cpIntScale picker
+      c = ((iToF v) - vmin) / vscale
+  pickGray (GrayPickerInt vmin vscale inv) v
+    | inv       = 1 - c 
+    | otherwise = c
+    where
+      c = ((iToF v) - vmin) / vscale
+
+instance Colorable Set where
+  type ColorPickerParams Set = ()
+  data ColorPicker Set =
+    ColorPickerSet
+    {
+      cpSetColors :: Map.Map Int (Float,Float,Float)
+    }
+  type GrayPickerParams Set = ()
+  data GrayPicker Set =
+    GrayPickerSet
+    {
+      gpSetValues :: Map.Map Int Float
+    }
+  createColorPicker () vs = ColorPickerSet colors
+    where
+      (_,colors) = List.foldl' getColor (mkStdGen 1234,Map.empty) vs
+      getColor (gen,col) (Set _ v) = (gen3,Map.insertWith skip v (b,g,r) col)
+        where
+          skip a b = b
+          (b,gen1) = randomR (0,1) gen
+          (g,gen2) = randomR (0,1) gen1
+          (r,gen3) = randomR (0,1) gen2
+      
+  createGrayPicker () vs = GrayPickerSet values
+    where
+      (_,values) = List.foldl' getValue (mkStdGen 1234,Map.empty) vs
+      getValue (gen,val) (Set _ v) = (gen',Map.insertWith skip v g val)
+        where
+          skip a b = b
+          (g,gen') = randomR (0,1) gen
+  pickColor (ColorPickerSet colors) (Set _ v) = c
+    where 
+      c = maybe (0,0,0) id $ Map.lookup v colors
+  pickGray (GrayPickerSet values) (Set _ v) = g
+    where
+      g = maybe 0 id $ Map.lookup v values
+
+drawGraphGray :: (Colorable a, AttribValue a, AttribValue b) =>
+    GrayPicker a -> Attribute a -> Graph b -> Image GrayScale Float 
+    -> Image GrayScale Float
+drawGraphGray picker attrib graph image =
   image
     <## [lineOp w 1 (x1,y1) (x2,y2)
       | (x1,y1,x2,y2,w) <- map linkToLine $ links graph]
@@ -168,7 +273,6 @@ drawGraphGray attrib graph image =
       | (x,y,v) <- map nodeToPoint $ nodes graph]
             -- filter (((==)0).val) $
   where
-    iToF = fromIntegral
     linkToLine l = (x1,y1,x2,y2,w)
       where
         (x1,y1) = roundP $ nodePosition $ linkFrom l
@@ -179,17 +283,37 @@ drawGraphGray attrib graph image =
       where
         x = round $ fst $ nodePosition n
         y = round $ snd $ nodePosition n
-        v = ((iToF $ val n) - minval) / scaleval
+        v = pickGray picker $ val n
     val n = unsafePerformIO $ getAttribute attrib n
-      --attribValue.nodeAttribute
-      -- | nodeAttribute n == NoSuchAttribute = 0
-      -- | otherwise = (attributeValue.nodeAttribute) n
-    --f = filter (((/=)NoSuchAttribute).nodeAttribute)
     weights = map linkWeight $ links graph
     minweight = realToFrac $ minimum weights
     maxweight = realToFrac $ maximum weights
     scaleweight = maxweight - minweight
-    vals = map val $ nodes graph
-    minval = iToF $ minimum vals
-    maxval = iToF $ maximum vals
-    scaleval = maxval - minval
+
+drawGraphColor :: (Colorable a, AttribValue a, AttribValue b) =>
+    ColorPicker a -> Attribute a -> Graph b -> Image RGB Float
+    -> Image RGB Float
+drawGraphColor picker attrib graph image =
+  image
+    <## [lineOp (w,w,w) 1 (x1,y1) (x2,y2)
+      | (x1,y1,x2,y2,w) <- map linkToLine $ links graph]
+    <## [circleOp c (x,y) 2 Filled
+      | (x,y,c) <- map nodeToPoint $ nodes graph]
+            -- filter (((==)0).val) $
+  where
+    linkToLine l = (x1,y1,x2,y2,w)
+      where
+        (x1,y1) = roundP $ nodePosition $ linkFrom l
+        (x2,y2) = roundP $ nodePosition $ linkTo l
+        w = ((realToFrac $ linkWeight l) - minweight) / scaleweight
+        roundP (a,b) = (round a, round b)
+    nodeToPoint n = (x,y,c)
+      where
+        x = round $ fst $ nodePosition n
+        y = round $ snd $ nodePosition n
+        c = pickColor picker $ val n
+    val n = unsafePerformIO $ getAttribute attrib n
+    weights = map linkWeight $ links graph
+    minweight = realToFrac $ minimum weights
+    maxweight = realToFrac $ maximum weights
+    scaleweight = maxweight - minweight
