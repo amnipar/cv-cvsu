@@ -25,13 +25,15 @@ Library
     ForeignFunctionInterface
   Build-Depends:
     base >= 3 && < 5,
-    containers >= 0.5,
+    containers == 0.4.2.1,
     random >= 1.0,
     hs-cvsu >= 0.1.0,
     CV >= 0.3.6.2
   Include-dirs:
     c
     /usr/include/opencv
+  cc-options:
+    --std=c99
   Extra-libraries:
     opencv_core,
     opencv_highgui

@@ -37,6 +37,7 @@ import Data.Maybe
 import Debug.Trace
 import System.Random
 import System.IO.Unsafe
+import Data.IORef
 
 -- | Normalizes a value to range [0..1] using a minimum and maximum value. If
 --   the given value is smaller than minV, minV is used; likewise, if it is
@@ -168,7 +169,7 @@ drawWeightedLines color size ls img =
     weightColor (c1,c2,c3) w = (adjust c1 w, adjust c2 w, adjust c3 w)
 
 iToF = fromIntegral
-    
+
 class Colorable c where
   type ColorPickerParams c
   data ColorPicker c
@@ -190,13 +191,13 @@ instance Colorable Int where
     , cpIntColorScale :: (Float,Float,Float)
     }
   type GrayPickerParams Int = Bool
-  data GrayPicker Int = 
+  data GrayPicker Int =
     GrayPickerInt
     { gpIntMin :: Float
     , gpIntScale :: Float
     , gpInvert :: Bool
     }
-  createColorPicker (inv,cbase,cscale) vs = 
+  createColorPicker (inv,cbase,cscale) vs =
     ColorPickerInt vmin vscale inv cbase cscale
     where
       vmin = iToF $ minimum vs
@@ -209,18 +210,18 @@ instance Colorable Int where
       vmax = iToF $ maximum vs
       vscale = vmax - vmin
   pickColor picker v
-    | cpIntInvert picker = 
+    | cpIntInvert picker =
         (bblue - sblue * c, bgreen - sgreen * c, bred - sred * c)
     | otherwise          =
         (bblue + sblue * c, bgreen + sgreen * c, bred + sred * c)
-    where 
+    where
       (bblue,bgreen,bred) = cpIntColorBase picker
       (sblue,sgreen,sred) = cpIntColorScale picker
       vmin = cpIntMin picker
       vscale = cpIntScale picker
       c = ((iToF v) - vmin) / vscale
   pickGray (GrayPickerInt vmin vscale inv) v
-    | inv       = 1 - c 
+    | inv       = 1 - c
     | otherwise = c
     where
       c = ((iToF v) - vmin) / vscale
@@ -247,7 +248,7 @@ instance Colorable Set where
           (b,gen1) = randomR (0,1) gen
           (g,gen2) = randomR (0,1) gen1
           (r,gen3) = randomR (0,1) gen2
-      
+
   createGrayPicker () vs = GrayPickerSet values
     where
       (_,values) = List.foldl' getValue (mkStdGen 1234,Map.empty) vs
@@ -256,14 +257,14 @@ instance Colorable Set where
           skip a b = b
           (g,gen') = randomR (0,1) gen
   pickColor (ColorPickerSet colors) (Set _ v) = c
-    where 
+    where
       c = maybe (0,0,0) id $ Map.lookup v colors
   pickGray (GrayPickerSet values) (Set _ v) = g
     where
       g = maybe 0 id $ Map.lookup v values
 
 drawGraphGray :: (Colorable a, AttribValue a, AttribValue b) =>
-    GrayPicker a -> Attribute a -> Graph b -> Image GrayScale Float 
+    GrayPicker a -> Attribute a -> Graph b -> Image GrayScale Float
     -> Image GrayScale Float
 drawGraphGray picker attrib graph image =
   image
@@ -312,7 +313,9 @@ drawGraphColor picker attrib graph image =
         x = round $ fst $ nodePosition n
         y = round $ snd $ nodePosition n
         c = pickColor picker $ val n
-    val n = unsafePerformIO $ getAttribute attrib n
+    val n = unsafePerformIO $ do
+      modifyIORef (graphPtr $ cgraph graph) $ \fgraph -> fgraph
+      getAttribute attrib n
     weights = map linkWeight $ links graph
     minweight = realToFrac $ minimum weights
     maxweight = realToFrac $ maximum weights
