@@ -17,9 +17,11 @@ module CV.CVSU.Drawing
 , Colorable(..)
 , drawGraphGray
 , drawGraphColor
+, drawGraphImageColor
 ) where
 
 import CVSU.TypedPointer
+import CVSU.Attribute
 import CVSU.ConnectedComponents
 import CVSU.QuadForest
 import CVSU.Graph
@@ -28,6 +30,7 @@ import CVSU.Set
 import CV.Image
 import CV.Drawing hiding (drawLines)
 import CV.ImageOp
+import CV.Pixelwise
 import Utils.Rectangle
 import CV.CVSU.Rectangle
 
@@ -241,8 +244,9 @@ instance Colorable Set where
     }
   createColorPicker () vs = ColorPickerSet colors
     where
-      (_,colors) = List.foldl' getColor (mkStdGen 1234,Map.empty) vs
-      getColor (gen,col) (Set _ v) = (gen3,Map.insertWith skip v (b,g,r) col)
+      m = Map.insert 0 (0,0,0) $ Map.empty
+      (_,colors) = List.foldl' getColor (mkStdGen 1234,m) vs
+      getColor (gen,col) (Set _ v _) = (gen3,Map.insertWith skip v (b,g,r) col)
         where
           skip a b = b
           (b,gen1) = randomR (0,1) gen
@@ -252,14 +256,14 @@ instance Colorable Set where
   createGrayPicker () vs = GrayPickerSet values
     where
       (_,values) = List.foldl' getValue (mkStdGen 1234,Map.empty) vs
-      getValue (gen,val) (Set _ v) = (gen',Map.insertWith skip v g val)
+      getValue (gen,val) (Set _ v _) = (gen',Map.insertWith skip v g val)
         where
           skip a b = b
           (g,gen') = randomR (0,1) gen
-  pickColor (ColorPickerSet colors) (Set _ v) = c
+  pickColor (ColorPickerSet colors) (Set _ v _) = c
     where
       c = maybe (0,0,0) id $ Map.lookup v colors
-  pickGray (GrayPickerSet values) (Set _ v) = g
+  pickGray (GrayPickerSet values) (Set _ v _) = g
     where
       g = maybe 0 id $ Map.lookup v values
 
@@ -320,3 +324,26 @@ drawGraphColor picker attrib graph image =
     minweight = realToFrac $ minimum weights
     maxweight = realToFrac $ maximum weights
     scaleweight = maxweight - minweight
+
+drawGraphImageColor :: (Colorable a, AttribValue a, AttribValue b) =>
+  ColorPicker a -> Int -> Attribute a -> Graph b -> Image RGB Float
+drawGraphImageColor picker s attrib graph =
+  image <## [rectOp c (-1) (mkRectangle rp rs)
+              | (rp,rs,c) <- map nodeToRect $ nodes graph]
+  where
+    minX = (minimum $ map (fst.nodePosition) $ nodes graph) - 0.5
+    maxX = (maximum $ map (fst.nodePosition) $ nodes graph) + 0.5
+    minY = (minimum $ map (snd.nodePosition) $ nodes graph) - 0.5
+    maxY = (maximum $ map (snd.nodePosition) $ nodes graph) + 0.5
+    w = (ceiling $ maxX - minX) * s
+    h = (ceiling $ maxY - minY) * s
+    s' = s `div` 2
+    image = imageFromFunction (w,h) (const (0,0,0))
+    nodeToRect n = ((rx,ry),(s,s),c)
+      where
+        rx = (\a -> (floor $ (a-minX) * (fromIntegral s))-s') $ fst $ nodePosition n
+        ry = (\a -> (floor $ (a-minY) * (fromIntegral s))-s') $ snd $ nodePosition n
+        c = pickColor picker $ val n
+    val n = unsafePerformIO $ do
+      modifyIORef (graphPtr $ cgraph graph) $ \fgraph -> fgraph
+      getAttribute attrib n
