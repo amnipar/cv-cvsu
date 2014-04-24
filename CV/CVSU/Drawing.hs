@@ -17,6 +17,7 @@ module CV.CVSU.Drawing
 , Colorable(..)
 , drawGraphGray
 , drawGraphColor
+, drawGraphImageGray
 , drawGraphImageColor
 ) where
 
@@ -324,6 +325,30 @@ drawGraphColor picker attrib graph image =
     minweight = realToFrac $ minimum weights
     maxweight = realToFrac $ maximum weights
     scaleweight = maxweight - minweight
+
+
+drawGraphImageGray :: (Colorable a, AttribValue a, AttribValue b) =>
+  GrayPicker a -> Int -> Attribute a -> Graph b -> Image GrayScale Float
+drawGraphImageGray picker s attrib graph =
+  image <## [rectOp c (-1) (mkRectangle rp rs)
+              | (rp,rs,c) <- map nodeToRect $ nodes graph]
+  where
+    minX = (minimum $ map (fst.nodePosition) $ nodes graph) - 0.5
+    maxX = (maximum $ map (fst.nodePosition) $ nodes graph) + 0.5
+    minY = (minimum $ map (snd.nodePosition) $ nodes graph) - 0.5
+    maxY = (maximum $ map (snd.nodePosition) $ nodes graph) + 0.5
+    w = (ceiling $ maxX - minX) * s
+    h = (ceiling $ maxY - minY) * s
+    s' = s `div` 2
+    image = imageFromFunction (w,h) (const 0)
+    nodeToRect n = ((rx,ry),(s,s),c)
+      where
+        rx = (\a -> (floor $ (a-minX) * (fromIntegral s))-s') $ fst $ nodePosition n
+        ry = (\a -> (floor $ (a-minY) * (fromIntegral s))-s') $ snd $ nodePosition n
+        c = pickGray picker $ val n
+    val n = unsafePerformIO $ do
+      modifyIORef (graphPtr $ cgraph graph) $ \fgraph -> fgraph
+      getAttribute attrib n
 
 drawGraphImageColor :: (Colorable a, AttribValue a, AttribValue b) =>
   ColorPicker a -> Int -> Attribute a -> Graph b -> Image RGB Float
