@@ -1,4 +1,4 @@
-{-#LANGUAGE TypeFamilies#-}
+{-#LANGUAGE TypeFamilies, FlexibleInstances #-}
 module CV.CVSU.Drawing
 ( valueToGrey
 , valueToColor
@@ -230,24 +230,28 @@ instance Colorable Int where
     where
       c = ((iToF v) - vmin) / vscale
 
-instance Colorable Set where
-  type ColorPickerParams Set = ()
-  data ColorPicker Set =
+instance Colorable (Set ()) where
+  type ColorPickerParams (Set ()) = ()
+
+  data ColorPicker (Set ()) =
     ColorPickerSet
     {
       cpSetColors :: Map.Map Int (Float,Float,Float)
     }
-  type GrayPickerParams Set = ()
-  data GrayPicker Set =
+
+  type GrayPickerParams (Set ()) = ()
+
+  data GrayPicker (Set ()) =
     GrayPickerSet
     {
       gpSetValues :: Map.Map Int Float
     }
+
   createColorPicker () vs = ColorPickerSet colors
     where
       m = Map.insert 0 (0,0,0) $ Map.empty
       (_,colors) = List.foldl' getColor (mkStdGen 1234,m) vs
-      getColor (gen,col) (Set _ v _) = (gen3,Map.insertWith skip v (b,g,r) col)
+      getColor (gen,col) (Set _ v _ _) = (gen3,Map.insertWith skip v (b,g,r) col)
         where
           skip a b = b
           (b,gen1) = randomR (0,1) gen
@@ -257,14 +261,16 @@ instance Colorable Set where
   createGrayPicker () vs = GrayPickerSet values
     where
       (_,values) = List.foldl' getValue (mkStdGen 1234,Map.empty) vs
-      getValue (gen,val) (Set _ v _) = (gen',Map.insertWith skip v g val)
+      getValue (gen,val) (Set _ v _ _) = (gen',Map.insertWith skip v g val)
         where
           skip a b = b
           (g,gen') = randomR (0,1) gen
-  pickColor (ColorPickerSet colors) (Set _ v _) = c
+
+  pickColor (ColorPickerSet colors) (Set _ v _ _) = c
     where
       c = maybe (0,0,0) id $ Map.lookup v colors
-  pickGray (GrayPickerSet values) (Set _ v _) = g
+
+  pickGray (GrayPickerSet values) (Set _ v _ _) = g
     where
       g = maybe 0 id $ Map.lookup v values
 
