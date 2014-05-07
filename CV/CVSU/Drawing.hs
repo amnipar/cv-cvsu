@@ -21,6 +21,7 @@ module CV.CVSU.Drawing
 , drawGraphImageColor
 ) where
 
+import CVSU.Types
 import CVSU.TypedPointer
 import CVSU.Attribute
 import CVSU.ConnectedComponents
@@ -271,6 +272,51 @@ instance Colorable (Set ()) where
       c = maybe (0,0,0) id $ Map.lookup v colors
 
   pickGray (GrayPickerSet values) (Set _ v _ _) = g
+    where
+      g = maybe 0 id $ Map.lookup v values
+
+
+instance Colorable (Set Statistics) where
+  type ColorPickerParams (Set Statistics) = ()
+
+  data ColorPicker (Set Statistics) =
+    ColorPickerStat
+    {
+      cpStatColors :: Map.Map Int (Float,Float,Float)
+    }
+
+  type GrayPickerParams (Set Statistics) = ()
+
+  data GrayPicker (Set Statistics) =
+    GrayPickerStat
+    {
+      gpStatValues :: Map.Map Int Float
+    }
+
+  createColorPicker () vs = ColorPickerStat colors
+    where
+      m = Map.insert 0 (0,0,0) $ Map.empty
+      (_,colors) = List.foldl' getColor (mkStdGen 1234,m) vs
+      getColor (gen,col) (Set _ v _ _) = (gen3,Map.insertWith skip v (b,g,r) col)
+        where
+          skip a b = b
+          (b,gen1) = randomR (0,1) gen
+          (g,gen2) = randomR (0,1) gen1
+          (r,gen3) = randomR (0,1) gen2
+
+  createGrayPicker () vs = GrayPickerStat values
+    where
+      (_,values) = List.foldl' getValue (mkStdGen 1234,Map.empty) vs
+      getValue (gen,val) (Set _ v _ _) = (gen',Map.insertWith skip v g val)
+        where
+          skip a b = b
+          (g,gen') = randomR (0,1) gen
+
+  pickColor (ColorPickerStat colors) (Set _ v _ _) = c
+    where
+      c = maybe (0,0,0) id $ Map.lookup v colors
+
+  pickGray (GrayPickerStat values) (Set _ v _ _) = g
     where
       g = maybe 0 id $ Map.lookup v values
 
